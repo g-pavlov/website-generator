@@ -3,3 +3,6 @@ hugo/content
 hugo/public
 hugo/resources
 node_modules
+tmp/
+.DS_Store
+generated

@@ -27,7 +27,7 @@
   {{ $options := (dict "targetPath" "css/gardener.css" "outputStyle" "compressed" "enableSourceMap" true ) }}
   {{ $style := resources.Get "sass/gardener.scss" | resources.ToCSS $options | resources.Fingerprint }}
   <link rel="stylesheet" href="{{ $style.RelPermalink }}">
-  
+
   <script src="{{"js/moment.js"| relURL}}{{ if $assetBusting }}?{{ now.Unix }}{{ end }}"></script>
   <script src="{{"js/vivus.js"| relURL}}{{ if $assetBusting }}?{{ now.Unix }}{{ end }}"></script>
   <script src="{{"js/scrollreveal.js"| relURL}}{{ if $assetBusting }}?{{ now.Unix }}{{ end }}"></script>
@@ -37,6 +37,17 @@
   <script src="{{"js/clipboard.min.js" | relURL}}{{ if $assetBusting }}?{{ now.Unix }}{{ end }}"></script>
 
   <script src="https://platform.linkedin.com/in.js" type="text/javascript">lang: en_US</script>
+  <script>
+    const branchName = "{{ .Site.Data.args.source_branch_name }}";
+    const docTitle = "{{ .Title }}";
+    const iconFile = "{{ .Site.BaseURL}}/img/icons.svg";
+    const buttonCopy = '{{ i18n "button_copy" }}';
+    const buttonPrint = '{{ i18n "button_print" }}';
+    const buttonDownload = '{{ i18n "button_download" }}';
+  </script>
+  <script src="{{"js/themes_init.min.js" | relURL}}{{ if $assetBusting }}?{{ now.Unix }}{{ end }}"></script>
+  <script src="{{"js/gardener.min.js" | relURL}}{{ if $assetBusting }}?{{ now.Unix }}{{ end }}"></script>
+  
   {{end}}
 
 </head>

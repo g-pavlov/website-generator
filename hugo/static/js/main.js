@@ -33,6 +33,8 @@ $(document).ready(function(){
 	
 	// Set the offset when entering page with hash present in the url
 	window.setTimeout(offsetAnchor, 0);
+
+	handleCodeBlocks();
 })
 
 $(window).load(function() {
