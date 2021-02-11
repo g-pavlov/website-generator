@@ -1,35 +1,13 @@
 #!/usr/bin/env bash
 
 sourceFilePath="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-filePath=$sourceFilePath/../latestDocVersions
-versions=$(cat $filePath)
 
-if [ ! -f $filePath ]; then
-    echo ${DEPENDENCY_VERSION} >$sourceFilePath/../latestDocVersions && exit 0
-fi
+# Local names are (currently) in format that is the same as names but changes 
+# dots (.) for underscore dashes (_). Example: github_com_gardener_gardener
+# Note: This is convetion and not normative
+DEPENDENCY_UPGRADE_FILE=dep-upgrade-${LOCAL_DEPENDENCY_NAME}
 
-semver=(${DEPENDENCY_VERSION//./ })
-depVersionMajor=(${semver[0]//[!0-9]/ }) # without v prefix: "v1" -> "1"
-depVersionMinor=${semver[1]}
-depVersionPatch=${semver[2]}
-
-versionsSet=(${versions// /})
-latestVersionSemVer=(${versionsSet[0]//./ })
-latestVersionMajor=(${latestVersionSemVer[0]//v/ })
-latestVersionMinor=${latestVersionSemVer[1]}
-
-echo Current latest major version is $latestVersionMajor
-echo Current latest minor version is $latestVersionMinor
-
-if [[ $depVersionMajor -gt $latestVersionMajor || $depVersionMinor -gt $latestVersionMinor ]]; then
-    result=${DEPENDENCY_VERSION}
-    for i in $versions; do
-        result="${result}\n${i}"
-    done
-    echo -e $result >$filePath
-    echo successfully updated documentation versions && exit 0
-fi
-
-f=${semver[0]}.${semver[1]}
-substitude="s/\(^${f}.*$\)/${DEPENDENCY_VERSION}/g"
-sed -i $substitude $filePath
+# write dependency's updated version upon dependency upgrade notification in $DEPENDENCY_UPGRADE_FILE
+echo ${DEPENDENCY_VERSION} > $sourceFilePath/../${DEPENDENCY_UPGRADE_FILE}
+echo "${DEPENDENCY_VERSION} version set to $(cat $sourceFilePath/../${DEPENDENCY_UPGRADE_FILE})"
+exit 0

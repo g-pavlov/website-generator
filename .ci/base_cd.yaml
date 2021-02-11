@@ -1,0 +1,49 @@
+component:
+  componentReferences: []
+  labels: []
+  name: github.tools.sap/kubernetes/landscape-documentation
+  provider: internal
+  repositoryContexts:
+  - baseUrl: eu.gcr.io/sap-se-gcr-k8s-private/cnudie/gardener/development
+    type: ociRegistry
+  resources:
+  - access:
+      imageReference: eu.gcr.io/sap-se-gcp-scp-k8s/landscape-documentation:v0.0.0-dev
+      type: ociRegistry
+    extraIdentity: {}
+    labels: []
+    name: landscape-documentation
+    relation: local
+    srcRefs: []
+    type: ociImage
+    version: v0.0.0-dev
+  sources:
+  - access:
+      commit: 0a780a81bacca07ad75725a238014baa520b2b57
+      ref: dev-0a780a81bacca07ad75725a238014baa520b2b57
+      repoUrl: github.tools.sap/kubernetes/landscape-documentation
+      type: github
+    extraIdentity: {}
+    labels:
+    - name: cloud.gardener/cicd/source
+      value:
+        repository-classification: main
+    name: github_tools_sap_kubernetes_landscape-documentation
+    type: git
+    version: v0.0.0-dev
+  - access:
+      commit: 0a780a81bacca07ad75725a238014baa520b2b57
+      ref: master
+      repoUrl: github.tools.sap/kubernetes/landscape-documentation
+      type: github
+    extraIdentity: {}
+    labels:
+    - name: cloud.gardener/cicd/source
+      value:
+        repository-classification: auxiliary
+    name: gardener_landscape-documentation
+    type: git
+    version: v0.0.0-dev
+  version: v0.0.0-dev
+meta:
+  schemaVersion: v2

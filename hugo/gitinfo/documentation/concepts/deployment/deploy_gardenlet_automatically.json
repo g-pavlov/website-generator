@@ -1,0 +1,26 @@
+{
+  "lastmod": "2020-10-07 11:25:47",
+  "publishdate": "2020-10-07 11:25:47",
+  "author": {
+    "login": "JensHaley",
+    "id": 34343894,
+    "node_id": "MDQ6VXNlcjM0MzQzODk0",
+    "avatar_url": "https://avatars1.githubusercontent.com/u/34343894?v=4",
+    "html_url": "https://github.com/JensHaley",
+    "gravatar_id": "",
+    "name": "Jens Haley",
+    "email": "jens.haley@sap.com",
+    "type": "User",
+    "site_admin": false,
+    "url": "https://api.github.com/users/JensHaley",
+    "events_url": "https://api.github.com/users/JensHaley/events{/privacy}",
+    "following_url": "https://api.github.com/users/JensHaley/following{/other_user}",
+    "followers_url": "https://api.github.com/users/JensHaley/followers",
+    "gists_url": "https://api.github.com/users/JensHaley/gists{/gist_id}",
+    "organizations_url": "https://api.github.com/users/JensHaley/orgs",
+    "received_events_url": "https://api.github.com/users/JensHaley/received_events",
+    "repos_url": "https://api.github.com/users/JensHaley/repos",
+    "starred_url": "https://api.github.com/users/JensHaley/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/JensHaley/subscriptions"
+  }
+}

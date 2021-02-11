@@ -1,15 +1,29 @@
 #!/bin/bash
 set -eu
 
+# Setup env
+
+# For the build step concourse will set the following environment variables:
+# SOURCE_PATH - path to component repository root directory.
+# BINARY_PATH - path to an existing (empty) directory to place build results into.
+
 if [[ $(uname) == 'Darwin' ]]; then
   READLINK_BIN="greadlink"
 else
   READLINK_BIN="readlink"
 fi
 
-HUGO=${HUGO:-hugo}
-FORK=${FORK:-gardener}
-BRANCH=${BRANCH:-master}
+if [[ -z "${SOURCE_PATH:-}" ]]; then
+  export SOURCE_PATH="$(${READLINK_BIN} -f $(dirname ${0})/..)"
+else
+  export SOURCE_PATH="$(${READLINK_BIN} -f "${SOURCE_PATH}")"
+fi
+
+if [[ -z "${BINARY_PATH:-}" ]]; then
+  export BINARY_PATH="${SOURCE_PATH}/bin"
+else
+  export BINARY_PATH="$(${READLINK_BIN} -f "${BINARY_PATH}")/bin"
+fi
 
 if [[ -z "${GARDENER_WEBSITE_GENERATOR_PATH:-}" ]]; then
   generatorRepoPath="$(${READLINK_BIN} -f $(dirname ${0})/..)"
@@ -31,14 +45,16 @@ generator=${generatorRepoPath}
 website=${websiteRepoPath}/docs
 echo "Generated site directory: ${website}"
 
-cd ${generator}
+HUGO_CONTENT=${HUGO_CONTENT:-$SOURCE_PATH/hugo/content}
+# Note that currently docforge supports only paths relative to the hugo directory for data 
+HUGO_DATA=${HUGO_DATA:-$SOURCE_PATH/hugo/data}
+WWW=${WWW:-$SOURCE_PATH/hugo/public}
+BOM_FILE=${BOM_FILE:-$SOURCE_PATH/component_descriptor.cnudie.yaml}
+LSS_VERSION_JSON_PATH=${LSS_VERSION_JSON_PATH:-$HUGO_DATA/version.json}
+COMPONENTS_INDEX_PATH=${COMPONENTS_INDEX_PATH:-$SOURCE_PATH/components.json}
+MANIFEST_PATH=${MANIFEST_PATH:-$BINARY_PATH/rel/manifest.yaml}
 
-if [ ! -f "./latestDocVersions" ]; then
-  echo "build failed: missing latestDocVersions file"
-  exit -1
-fi
-
-getGitHubToken() {
+getGitHubToken(){
   # Check if gardener-ci is available (in local setup)
   command -v gardener-ci >/dev/null && gardenci="true" || gardenci=""
   if [[ $gardenci == "true" ]]; then
@@ -50,32 +66,76 @@ getGitHubToken() {
     fi
   fi
 }
-GIT_OAUTH_TOKEN=${GIT_OAUTH_TOKEN:-$(getGitHubToken github_com)}
 
-test $GIT_OAUTH_TOKEN #fail fast
+GITHUB_OAUTH_TOKEN=${GITHUB_OAUTH_TOKEN:-$(getGitHubToken github_com)}
 
-#
-CLONE="temp"
-HUGO_CONTENT=hugo/content
-#
+# Generate components index file
 
-# Clear from previous runs
-rm -rf $HUGO_CONTENT
-rm -rf $CLONE
-rm -rf hugo/data
+# If this build is upon dependency version upgrade, find out the updated dependency names and versions.
+# Must be ones starting with the reserved "dep-upgrade-" prefix located in the $SOURCE_PATH.
+joinByChar() {
+  local IFS="$1"
+  shift
+  echo "$*"
+}
 
-mkdir hugo/data
-versions=$(cat latestDocVersions | sed -n -e 'H;${x;s/\n/,/g;s/^,//;p;}')
-docforge -f https://github.com/gardener/documentation/blob/master/.docforge/website.yaml -d $HUGO_CONTENT --hugo --github-oauth-token $GIT_OAUTH_TOKEN --variables "versions=${versions}" --github-info-destination ../data || true
-python3 scripts/generateVersioningFile.py
-rm -rf $CLONE
-rm -rf ${website}/*
-cd hugo
+dependencies=()
+dependenciesLocalNames=()
+files=$(find . -type f -name "dep-upgrade-*" -exec echo {} +)
+for f in $files; do 
+    DEP_NAME=${f##*dep-upgrade-}
+    dependenciesLocalNames+=( $(echo $DEP_NAME) );
+    DEP_VERSION=$(cat $f)
+    DEP="$(echo $DEP_NAME)=$(echo $DEP_VERSION)"
+    dependencies+=( $(echo $DEP) );
+done
+compVersionRewriteArg=$(joinByChar , ${dependencies[*]})
+if [[ -n "${compVersionRewriteArg}" ]]; then
+    DEP_VERSIONS="--comp-version-rewrite=${compVersionRewriteArg}"
+fi
+if [[ ! -e "${BOM_FILE}" ]]; then
+  echo "no $BOM_FILE file found."
+  exit 1
+# Generate components index and landscape version from a local landscape-setup component desriptor $BOM_FILE, comprising only documentation components
+$SOURCE_PATH/scripts/gen.py components -i $BOM_FILE -o $COMPONENTS_INDEX_PATH --validate=true --version-file=$LSS_VERSION_JSON_PATH ${DEP_VERSIONS:-}
 
-# Generate site from ${content} into ${website}
-#
-echo
-hugo --minify --destination ${website}
+if [[ ! -e "${COMPONENTS_INDEX_PATH}" ]]; then
+  echo "no $COMPONENTS_INDEX_PATH file found."
+  exit 1
+fi
+
+cp "${COMPONENTS_INDEX_PATH}" "${SOURCE_PATH}"/hugo/static
+cp "${COMPONENTS_INDEX_PATH}" "${HUGO_DATA}"
+
+if [[ ! -e "${LSS_VERSION_JSON_PATH}" ]]; then
+  echo "[warning] no $LSS_VERSION_JSON_PATH file found."
+  # exit 1
+fi
+
+manifestComponentsArg=$(joinByChar , ${dependenciesLocalNames[*]})
+if [[ -n "${manifestComponentsArg}" ]]; then
+    MANIFEST_COMPS="--include-components=${manifestComponentsArg}"
+fi
+# Generate the docforge manifest template from landscape BoM
+$SOURCE_PATH/scripts/gen.py manifest -i $COMPONENTS_INDEX_PATH -o $MANIFEST_PATH ${MANIFEST_COMPS:-}
+if [[ ! -e "${MANIFEST_PATH}" ]]; then
+  echo "no $MANIFEST_PATH file found."
+  exit 1
+fi
+
+
+# Forge a documentation bundle
+
+docforge -f $MANIFEST_PATH -d $HUGO_CONTENT --hugo --hugo-section-files="readme.md,readme,read.me,index" --github-oauth-token-map="github.com=$GITHUB_OAUTH_TOKEN" --github-info-destination ../data || true
+
+# Run post-forge hugo data pieces
+$SOURCE_PATH/scripts/genHugoData.py -i ${COMPONENTS_INDEX_PATH} -hd $HUGO_DATA -hc $HUGO_CONTENT
+
+
+# Build the website
+
+cd $SOURCE_PATH/hugo && hugo --minify && cd -
+
 
 echo gardener.cloud >${website}/CNAME
 

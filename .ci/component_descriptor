@@ -1,12 +1,67 @@
 #!/usr/bin/env bash
+set -eu
 
-SOURCE_PATH="$(readlink -f "$(dirname ${0})/..")"
-GARDENER_DOCUMENTATION_VERSION_PATH="$SOURCE_PATH/latestDocVersions"
-versions=$(cat $GARDENER_DOCUMENTATION_VERSION_PATH)
-versionsArray=($versions)
+if [[ $(uname) == 'Darwin' ]]; then
+  READLINK_BIN="greadlink"
+else
+  READLINK_BIN="readlink"
+fi
 
-${ADD_DEPENDENCIES_CMD} \
-    --component-dependencies \
-    '{"name": "github.com/gardener/documentation", "version": "'${versionsArray[0]}'"}'
+SOURCE_PATH="$(${READLINK_BIN} -f "$(dirname ${0})/..")"
+BINARY_PATH=${BINARY_PATH:-${SOURCE_PATH}/bin}
+COMPONENT_NAME=${COMPONENT_NAME:-github.tools.sap/kubernetes/landscape-documentation}
+COMPONENT_VERSION=${COMPONENT_VERSION:-$(cat $SOURCE_PATH/VERSION)}
+if [ -z "${BASE_DEFINITION_PATH:-}" ]; then
+  BASE_DEFINITION_PATH=$SOURCE_PATH/.ci/base_cd.yaml
+  sed -i 's/v0.0.0-dev/'"${COMPONENT_VERSION}"'/g' $BASE_DEFINITION_PATH
+fi
+COMPONENT_DESCRIPTOR_PATH=${COMPONENT_DESCRIPTOR_PATH:-$SOURCE_PATH/cd.yaml}
+ADD_DEPENDENCIES_CMD=${ADD_DEPENDENCIES_CMD:-gardener-ci productutil_v2 add_dependencies \ 
+                        --descriptor-src-file="${BASE_DEFINITION_PATH}" \
+                        --descriptor-out-file="${BASE_DEFINITION_PATH}" \
+                        --component-name="${COMPONENT_NAME}" \
+                        --component-version="${COMPONENT_VERSION}"}
 
-cp "${BASE_DEFINITION_PATH}" "${COMPONENT_DESCRIPTOR_PATH}"
+COMPONENTS_INDEX_PATH=${COMPONENTS_INDEX_PATH:-$SOURCE_PATH/hugo/data/components.json}
+LSS_CNAME=${LSS_CNAME:-github.wdf.sap.corp/kubernetes/landscape-setup}
+LSS_CTX_REPO=${LSS_CTX_REPO:-eu.gcr.io/sap-se-gcr-k8s-private/cnudie/gardener/development}
+
+DEPENDENCY_UPGRADE_FILES=$(find $SOURCE_PATH -maxdepth 1 -type f -name "dep-upgrade-*" -exec echo {} +)
+
+joinByChar() {
+  local IFS="$1"
+  shift
+  echo "$*"
+}
+
+dependencies=()
+files=$(find . -type f -name "dep-upgrade-*" -exec echo {} +)
+for f in $files; do 
+    DEP_NAME=${f##*dep-upgrade-}
+    DEP_VERSION=$(cat $f)
+    DEP="$(echo $DEP_NAME)=$(echo $DEP_VERSION)"
+    dependencies+=( $(echo $DEP) );
+done
+compVersionRewriteArg=$(joinByChar , ${dependencies[*]})
+if [[ -n "${compVersionRewriteArg}" ]]; then
+    DEP_VERSIONS="--comp-version-rewrite=${compVersionRewriteArg}"
+fi
+
+# Get the latest landscape-setup components list, comprising only the documentation components
+# and considering components version updates if any ($DEP_VERSIONS).
+$SOURCE_PATH/scripts/gen.py components --cname="${LSS_CNAME}" --crepo="${LSS_CTX_REPO}" -o $COMPONENTS_INDEX_PATH --validate=true $(echo ${DEP_VERSIONS:-})
+
+# construct the --component-dependency flags from the landscape-setup's documentation components index
+add_dep_flags=()
+r=$(jq -c '.[]' $COMPONENTS_INDEX_PATH )
+while read comp; do
+    dep_name=$(jq -n '$c.url' --argjson c "$comp")
+    dep_version=$(jq -n '$c.version' --argjson c "$comp")
+    dep="{ \"name\": $dep_name, \"version\": $dep_version }"
+    add_dep_flags+=( --component-dependencies="$dep" )
+done <<< $r
+
+# build component descriptor dependencies
+${ADD_DEPENDENCIES_CMD:-} "${add_dep_flags[@]}"
+
+cp "${BASE_DEFINITION_PATH:-}" "${COMPONENT_DESCRIPTOR_PATH:-}"
